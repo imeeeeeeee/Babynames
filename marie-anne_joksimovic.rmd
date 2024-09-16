@@ -1,0 +1,1128 @@
+---
+title: "Homework 1 (2023): Data Wrangling and Visualization"
+subtitle: "Due date : 2023-02-24 23:55 (this is a hard deadline)"
+author: "Lagarde et Michard"
+date: "2023-02-24"
+format:
+    html:
+        code-fold: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+# Homework 1
+
+Due date : **2023-02-24 @23h55** (this is a **hard deadline**)
+
+## Fill this with your names
+
+-   Marie-Anne, Julien, MIDS
+-   Joksimovic, Jasmin, MIDS
+
+## Carefully follow instructions
+
+**If you don't: no evaluation!**
+
+Write in English or French
+
+The deliverable is a file
+
+-   `xxx_yyy.Rmd` file (Rmarkdown) or
+-   `xxx_yyy.qmd` file (if you are using `quarto`)
+
+where `xxx` and `yyy` are your names, for example
+`lagarde_michard.ipynb`.
+
+The deliverable is not meant to contain cell outputs.\
+The data files used to execute cells are meant to sit in the same
+directory as the deliverable. Use relative filepaths or urls to denote
+the data files.
+
+I **will** execute the code in your notebook: make sure that running all
+the cells works well.
+
+## Grading <i class="fa graduation-cap"></i>
+
+Here is the way we'll assess your work
+
+| Criterion                  | Points | Details                                                                             |
+|:----------------------------|:-----------------------:|:-----------------|
+| Spelling and syntax        |   3    | English/French                                                                      |
+| Plots correction           |   3    | Clarity / answers the question                                                      |
+| Plot style and cleanliness |   3    | Titles, legends, labels, breaks ...                                                 |
+| Table wrangling            |   4    | ETL, SQL like manipulations                                                         |
+| Computing Statistics       |   5    | SQL `goup by` and aggregation                                                       |
+| DRY compliance             |   2    | DRY principle at [Wikipedia](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) |
+
+If we see a single (or more) `for` loop in your code: **-5 points**.
+Everything can be done using high-level `pandas` methods
+
+# Preliminaries
+
+## Notebooks, Rmarkdown, Quarto: Modus operandi
+
+-   [Quarto](https://quarto.org)
+-   [Rmarkdown](https://rmarkdown.rstudio.com)
+-   [Jupyter for R](https://jupyter.org)
+
+## Packages
+
+-   Base `R` can do a lot. But the full power of `R` comes from a fast
+    growing collection of \`packages\`\`.
+
+-   Packages are first installed, and if needed, imported during a
+    session.
+
+-   Once a package has been installed on your drive, if you want all
+    objects exported by the package to be available in your session, you
+    should import the package, using `require(...)` or `library()`.
+
+-   If you just want to pick some subjects from the package, you can use
+    qualified names like `pkgname::object_name` to access the object
+    (function, dataset, class...)
+
+```{r}
+pacman::p_load("tidyverse")
+pacman::p_load("tidyr")
+# To calculate memory usage of an object.
+pacman::p_load("pryr")
+pacman::p_load("ggplot2")
+pacman::p_load("vroom")
+pacman::p_load("hdf5r")
+pacman::p_load("forcats")
+pacman::p_load("dplyr")
+pacman::p_load("gridExtra")
+pacman::p_load("plotly")
+require(gridExtra)
+library(gridExtra)
+```
+
+# Getting the data
+
+## French data
+
+The French data are built and made available by
+[INSEE](https://www.insee.fr/fr/accueil) (French Governement Statistics
+Institute)
+
+Prénoms: -
+<https://www.insee.fr/fr/statistiques/fichier/2540004/nat2021_csv.zip>
+
+This dataset has been growing for a while. It has been considered by
+social scientists for decades. Given names are meant to give insights
+into a variety of phenomena, including religious observance.
+
+-   A glimpse at the body of work can be found in [*L'archipel français*
+    by Jérome Fourquet, Le Seuil,
+    2019](https://www.seuil.com/ouvrage/l-archipel-francais-jerome-fourquet/9782021406023)
+
+-   Read the [File
+    documentation](https://www.insee.fr/fr/statistiques/2540004?sommaire=4767262#documentation)
+
+## US data
+
+US data may be gathered from
+
+[Baby Names USA from 1910 to 2021
+(SSA)](https://www.kaggle.com/datasets/donkea/ssa-names-1910-2021?resource=download)
+
+See <https://www.ssa.gov/oact/babynames/background.html>
+
+## British data
+
+English and Welsh data can be gathered from
+
+[https://www.ons.gov.uk/](https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/datasets/babynamesinenglandandwalesfrom1996?utm_source=pocket_saves)
+
+## Download the French data
+
+**QUESTION:** Download the data into a file which relative path is
+`'./nat2021_csv.zip'`
+
+**Hints:**
+
+-   Have a look at package
+    [`httr`](https://cran.r-project.org/web/packages/httr/index.html).
+-   Use magic commands to navigate across the file hierarchy and create
+    subdirectories when needed
+
+```{r}
+DIR_PATH_DATA <- './data'
+
+# Parameter for each dataset
+params <-  list(
+    french_data = list(
+      url = 'https://www.insee.fr/fr/statistiques/fichier/2540004/nat2021_csv.zip',
+      dirpath = './data/french',
+      timecourse = '',
+      fpath = 'nat2021_csv.zip',
+      ftype='zip',
+      delimiter=';'),
+    british_data = list(
+      url = 'https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/datasets/babynamesinenglandandwalesfrom1996/1996tocurrent/babynames1996to2021.xlsx',
+      dirpath = './data/british',
+      timecourse = '',
+      fpath = 'babynames1996to2021.xlsx',
+      ftype = 'xlsx'
+    ),
+    us_data = list(
+      url = 'https://www.ssa.gov/oact/babynames/names.zip',
+      dirpath = './data/us',
+      timecourse = '',
+      fpath = 'names.zip',
+      ftype = 'zip',
+      delimiter = ','
+    )
+)
+```
+
+```{r}
+# modify location  make sure you are in the right directory
+# getwd(). # get working directory
+# setwd()  # set working directory
+# getwd() 
+# list.dirs(). # list files in working directory
+```
+
+```{r}
+# We set some variables
+french_param = params$french_data
+british_param = params$british_data
+us_param = params$us_data
+```
+
+```{r}
+# To not repeat ourself, we create a function to download data.
+# If the downloaded file is a zip, then the function unzip it
+# Returns file paths of data.
+download_data <- function(data_param) 
+{
+  # If dir path does not exist, we create it.
+  if (! file.exists(data_param$dirpath))
+  {
+    dir.create(file.path(data_param$dirpath), recursive = TRUE)
+  }
+  
+  # Destination file path
+  dest_file <- file.path(data_param$dirpath, data_param$fpath)
+  # Destination dir path
+  dest_dir <- dirname(dest_file)
+  
+  # If the file is a zip, we download it as a temporary file. 
+  if(data_param$ftype == 'zip')
+  {
+    dest_file <- tempfile()
+  }
+  
+  # If the data was not already downloaded, we download it.
+  if(! file.exists(dest_file))
+  {
+    download.file(data_param$url, destfile = dest_file)
+
+    # If it is a zip, then we unzip it.
+    if(data_param$ftype == 'zip')
+    {
+      extracted_files <- unzip(dest_file, exdir = dest_dir)
+      return(extracted_files)
+    }
+  }
+  
+  return(data_param$fpath)
+}
+  
+```
+
+## Download French data
+
+```{r}
+french_pathnames <- download_data(french_param)
+```
+
+## Download US and British data
+
+```{r}
+british_pathnames <- download_data(british_param)
+us_pathnames <- download_data(us_param)
+```
+
+## Load the French data in memory
+
+**QUESTION:** Load the data in a `pandas` `DataFrame` called `data`
+
+**Hints:**
+
+-   You should obtain a `dataframe`/`tibble` with 4 columns.
+-   Mind the conventions used to build the `csv` file.
+-   Package `pandas` provides the convenient tools.
+-   The dataset, though not too large, is already demanding.
+-   Don't hesitate to test your methods on a sample of rows. Function
+    `dplyr::slice_sample()` can be helpful.
+
+```{r}
+french_df <- read.csv(french_pathnames, sep=french_param$delimiter)
+french_df %>% dplyr::slice_sample(n=5)
+```
+
+## Load US and British data in memory
+
+```{r}
+# your code here
+year_fun <- function(us_file){
+  return(as.numeric(substr(us_file, nchar(us_file)-7, nchar(us_file)-3)))
+}
+
+us_df <-
+  map_df(us_pathnames[-143], ~{
+    year <- year_fun(.x) 
+    read.csv(.x, col.names = c("firstname", "gender", "count")) %>% 
+    mutate(year=year)
+})
+```
+
+
+## Explore the data
+
+**QUESTION:** Get a feeling of the data.
+
+-   This dataset is supposed to report all given names used for either
+    sex during a year in France since 1900
+
+-   The file is made of `> 600 000` lines and 4 columns.
+
+    
+```{r}
+# For each column, we get its datatype.
+sapply(french_df, typeof)
+```
+
+    |-- preusuel : object
+    |-- nombre: int64
+    |-- sexe: int64
+    |-- annais: object
+
+Each row indicates for a given `preusuel` (prénom usuel, given name),
+`sexe` (sex), and `annais` (année naissance, birthyear) the `nombre`
+(number) of babies of the given sex who were given that name during the
+given year.
+
+| sexe | preusuel | annais | nombre |
+|:-----|:---------|-------:|-------:|
+| 2    | SYLVETTE |   1953 |    577 |
+| 1    | BOUBOU   |   1979 |      4 |
+| 1    | NILS     |   1959 |      3 |
+| 2    | NICOLE   |   2003 |     36 |
+| 1    | JOSÉLITO |   2013 |      4 |
+
+```{r}
+french_df %>% glimpse()
+```
+
+**QUESTION:** Compare memory usage and disk space used by data
+
+**ANSWER** From the following chunk, we deduce that the memory usage by
+the french data frame is 18.59MB. With `file.info` we see that the disk
+usage is approximately 12MB. Therefore, memory usage is greater than
+disk usage. It can be explained by `dtypes`. For example, to store the
+value "1" (in the the `sexe` column) we only use 1 byte (ASCII encode),
+but to store it in R, we use 8 bytes (because `sexe` is int). It may be
+relevant to use other `dtypes` to reduce memory. For example, we could
+store `sexe` as category.
+
+```{r}
+french_df %>% object_size()
+file.info(french_pathnames)$size / 1024 / 1024
+```
+
+**QUESTION:** For each column compute the number of distinct values.
+
+```{r}
+french_df %>% summarize(across(everything(), ~ n_distinct(., na.rm=T)))
+```
+
+# Transformations
+
+## Improving the data types
+
+**QUESTION:** Make `sexe` a category with two levels `Female` and
+`Male`. Call the new column `gender`. Do you see any reason why this
+factor should be ordered?
+
+Use package `forcats`
+
+**ANSWER** Factors should be ordered for two reasons : First, to have
+the same behavior in every environment in which the code is executed.
+Secondly, it may make comparisons easier by specifying an order for
+levels. We don't think this reason makes sense here since there are only
+two levels.
+
+```{r}
+french_df$gender <- french_df$sexe %>% as.factor()
+levels(french_df$gender) <- c('Male', 'Female')
+
+us_df$gender <- us_df$gender %>% as.factor()
+levels(us_df$gender) <- c('Male', 'Female')
+```
+
+```{r}
+# Verification
+french_df %>% dplyr::slice_sample(n=5)
+us_df %>% dplyr::slice_sample(n=5)
+```
+
+**QUESTION:** Compare memory usage of columns `sexe` and `gender`
+**ANSWER** We see that sexe and gender have the same memory usage.
+
+```{r}
+french_df %>% 
+  summarize(across(any_of(c('sexe', 'gender')), ~ object_size(.)))
+```
+
+**QUESTION:** Would it be more memory-efficient to recode `sexe` using
+modalities `F` and `M` instead of `Male` and `Female` ?
+
+**ANSWER** We don't think that it would be more memory-efficient to record `sexe`using `M` and `F` instead of `Male` and `Female`. 
+
+`M` and `F` are shorter than `Male` and `Female` but it only represents the name associated with the category, and not the actual value stored in the dataframe.
+
+## Dealing with missing values
+
+**QUESTION:** Variable `annais` class is `object`. Make `annais` of type
+`numeric`. Note that missing years are encoded as "XXXX", find a way to
+deal with that.
+
+**ANSWER** We replaced all *XXXX* in `annais` with *NA*. Another way to
+deal with missing years was to specify the `na` parameter, in the
+function `read_csv`. For example:
+`read.csv(french_pathnames, sep=french_param$delimiter, na="XXXX")`
+
+```{r}
+french_df["annais"][french_df["annais"]=="XXXX"] <- NA
+french_df$annais <- french_df$annais %>% as.numeric()
+french_df %>% slice_sample(n=5)
+```
+
+## Rename and remove columns
+
+**QUESTION:** Remove useless columns (now that you've created new ones,
+and rename them). You should end up with a dataframe with columns called
+`"gender"`, `"year"`, `"count"`, `"firstname`" with the following
+dtypes:
+
+```{verbatim}
+gender        factor
+firstname     character
+count         integer
+year          integer
+```
+
+> The only column not fitting this category is the columns `sexe`, so
+> that's the columns that we will be dropping Moreover, for the coherent
+> touch, we will rename the remaining columns to fit their English name
+> equivalent.
+
+```{r}
+
+# We take a subset of the dataframe, without sexe column.
+french_df <- french_df %>% subset(select = -sexe)
+french_df <- french_df %>% dplyr::rename(firstname = preusuel,
+                            year = annais,
+                            count = nombre)
+
+```
+
+**Question:** Do the same thing for British and US data. You should
+eventually obtain dataframes with the same schema.
+
+**QUESTION:** How many missing values (NA) have been introduced? How
+many births are concerned?
+
+```{r}
+french_df %>% summarise_all(~ sum(is.na(.)))
+```
+
+**QUESTION:** Read the documentation and describe the origin of rows
+containing the missing values.
+
+**ANSWER** For `year` column, the origin of rows containing the missing
+values is the result of transforming `XXXX` value to `NA`. However, for
+`firstname` column, it is an expected behavior of `read_csv`. In
+`read_csv`, the parameter `na` is used to specify which values to treat
+as a missing value. By default, the documentation says that
+`na = c("", "NA")`, which means that empty value and `"NA"` are treated
+as missing value. The problem is that the name `NA` is present in our
+dataset. We can read in the documentation
+`https://www.insee.fr/fr/statistiques/2540004?sommaire=4767262#documentation`
+that there is no agreement about missing values in `firstname`. After
+some research, it seems that the `NA` name exists (it seems to have a
+chinese origin). Thus, to not falsify our statistics, we re-establish
+the name in our data set.
+
+```{r}
+# See the answer above.
+french_df$firstname[is.na(french_df$firstname)] <- "NA"
+```
+
+```{r}
+# Re-check missing values:
+french_df %>% summarise_all(~ sum(is.na(.)))
+```
+
+## Checkpointing: save your transformed dataframes
+
+**QUESTION:** Save the transformed dataframe (retyped and renamed) to
+`./nat2021_csv.zip`. Try several compression methods.
+
+```{r}
+# This function saves a given data frame into a zip file.
+save_in_zip <- function(dataframe, csv_file_path, zip_file_path)
+{
+  # We save the data frame into a zip file in two steps:
+  # first, we save the data frame into a csv file, and then we zip the csv file.
+  
+  write.csv(dataframe, csv_file_path)
+  
+  # We use the system's zip program.
+  # About extras, We use -j to remove directory names from the zip file. To obtain
+  # "babies-fr.csv" instead of "/data/french/babies-fr.csv" in the zip archive.
+  # -FS for "file sync", delete any files that are not in "files" argument. In other words, it is useful to not append csv file in an already
+  # existing archive.
+
+  zip(zip_file_path, files = csv_file_path, extras="-jFS")
+}
+
+save_in_zip(french_df, file.path(french_param$dirpath, "babies-fr.csv"), file.path(french_param$dirpath, "babies-fr.zip"))
+```
+
+**QUESTION:** Save the transformed dataframes (retyped and renamed) to
+`./nat2021.hdf` using `.hdf` format
+
+```{r}
+# The file will be created in directory './data'.
+file.h5 <- H5File$new(file.path(DIR_PATH_DATA, "nat2021.hdf"), mode="w")
+file.h5$create_group("nat")
+file.h5[["nat/fr"]] <- french_df
+file.h5[["nat/us"]] <- us_df
+
+file.h5$close_all()
+```
+
+At that point your working directory should look like:
+
+    |── homework01.rmd.    # if you use `rmarkdown`
+    |── homework01.qmd     # if you use `quarto`
+    ├── homework01.ipynb   # if you use `jupyter` `notebook`
+    ├── babies-fr.zip
+    ├── babies-us.zip
+    ├── babies-ew.zip
+    ├── births-fr.csv
+
+**QUESTION:** Reload the data using `read_hdf(...)` so that the
+resulting dataframes are properly typed with meaningful and homogeneous
+column names.
+
+**Hint:** use `tryCatch(...)` to handle exceptions
+
+```{r}
+file.h5 <- H5File$new(file.path(DIR_PATH_DATA, "nat2021.hdf"), mode="r+")
+french_df <- file.h5[["nat/fr"]][]
+us_df <- file.h5[["nat/us"]][]
+file.h5$close_all()
+
+```
+
+## Some data "analytics" and visualization
+
+**QUESTION**: For each year, compute the total number of Female and Male
+births and the proportion of Female births among total births
+
+**Hints:**
+
+```{r}
+proportion_df <- french_df %>%
+  filter(!is.na(year)) %>%
+  group_by(year, gender) %>% 
+  summarise(count = sum(count)) %>%
+  pivot_wider(names_from = gender, values_from = count) %>%
+  mutate(total = Male + Female, proportion_girls = Female / total)
+  
+proportion_df
+```
+
+**QUESTION:** Plot the proportion of female births as a function of year
+and French, US, en British babynames data. Compare with what you get
+from `births-fr.hdf`.
+
+Don't forget: title, axes labels, ticks, scales, etc.
+
+Because of what we did before, the `plot` method of a `DataFrame` with
+be rendered using `plotly`, so you can use this. But you can use also
+`seaborn` or any other available plotting library that you want.
+
+**Hint:** Mind the missing values in the `year` column
+
+
+```{r}
+# Define a function to calculate the proportion of female births
+calc_prop_female <- function(df) {
+  df %>%
+    filter(!is.na(year)) %>%
+    group_by(year, gender) %>% 
+    summarise(count = sum(count)) %>%
+    pivot_wider(names_from = gender, values_from = count) %>%
+    mutate(total = Male + Female, proportion_girls = Female / total)
+}
+
+# Create the plot
+ggplot() +
+  geom_line(data = calc_prop_female(french_df), aes(x = year, y = proportion_girls, color = "France")) +
+  geom_line(data = calc_prop_female(us_df), aes(x = year, y = proportion_girls, color = "USA")) +
+  scale_color_manual(values = c("France" = "red", "USA" = "blue")) +
+  labs(title="Proportion of Female births by country", x = "Year", y = "Proportion of Female Births")+
+  theme(axis.text.x = element_text(angle=70, vjust=0.5, hjust=0.5)) +
+  scale_x_continuous(breaks = seq(1880, 2021, 5)) 
+
+```
+
+
+
+**QUESTION:** Make any sensible comment about these plots.
+
+**ANSWER:** We see in the plot that the proportion of girls decreases
+year by year, at some point reaching almost 50%. A plausible explanation
+to this phenomenon may be the fact that there was an increase in the
+world population, and thus, if we suppose the probability to give birth
+to a boy is the same than give birth to a girl, and each birth is
+independent, then by the law of large numbers, the proportion should
+converge towards 1/2 as the population increases.
+
+A more plausible interpretation may be the world wars in 1914-1918 and
+1939-1945. Those wars caused deaths of many men in the world, which can
+explain the difference between the number between girls and boys.
+
+Another explanation is that there are a lot of missing data for boys between 
+1900-1945, as stated in the documentation of the data. Because, if we don't
+think that war has any impact on the probability to give birth to a boy.
+
+**QUESTION:** Explore the fluctuations of sex ratio around its mean
+value since 1945 in the US, in France and in the Great Britain.
+
+Plot deviations of sex ratio around its mean since 1945 as a function of
+time.
+
+```{r}
+deviation_plot <- 
+  ggplot() +
+  aes(x=year, y=proportion_girls) +
+  labs(title="Deviations of sex ratio around its mean since 1945", x = "Year", y = "Deviation") +
+  geom_point() +
+  scale_x_continuous(breaks = seq(1900, 2021, 5)) +
+  scale_y_continuous(limits = c(0.4, 0.6), breaks = seq(0.4, 0.6, 0.025)) +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5, hjust=0.5)) +
+  geom_hline(yintercept=mean(proportion_df$proportion_girls), color="red")
+
+dpfr <- deviation_plot%+%(calc_prop_female(french_df) %>% filter(year>=1945))+labs(subtitle = "France")
+dpus <- deviation_plot%+%(calc_prop_female(us_df) %>% filter(year>=1945))+labs(subtitle = "USA")
+grid.arrange(dpfr, dpus, ncol=1)
+```
+
+**QUESTION:** Assume that baby gender is chosen at random according to a
+Bernoulli distribution with success probability $.48$, that baby genders
+are i.i.d. Perform simulations for sex ratios for French and US data
+since 1945.
+
+Plot the results, compare with your plots above.
+
+**Answer** If we compare with the plot of sex ratios corresponding to
+actual data after year 1945, we notice that the scatter plots are very
+similar. The two scatter plots show a stable proportion of girl of
+approximately 0.48 year after year.
+
+```{r}
+# We set the probability to give birth to a girl.
+p_girl <- 0.48
+
+bern_plot <-  ggplot() +
+  scale_x_continuous(breaks = seq(1900, 2021, 5)) +
+  scale_y_continuous(limits = c(0.478, 0.482), breaks = seq(0.478, 0.482, 0.001)) +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5, hjust=0.5)) +
+  aes(x = year, y = proportion_girls) +
+  labs(title="Simulated proportion of girls with a Bernoulli distribution with probability 0.48", x = "Year", y = "Girl proportion") +
+  geom_line(alpha=0.5)
+
+bpfr <- bern_plot%+%
+  (calc_prop_female(french_df) %>%
+  filter(year >= 1945) %>%
+  # We generate the simulated proportion of girl with a Bernoulli distribution for each year.
+  summarize(proportion_girls = sum(rbernoulli(total, p=p_girl)) / total)) +labs(subtitle = "France")
+
+bpus <-  bern_plot%+%
+  (calc_prop_female(us_df) %>%
+  filter(year >= 1945) %>%
+  # We generate the simulated proportion of girl with a Bernoulli distribution for each year.
+  summarize(proportion_girls = sum(rbernoulli(total, p=p_girl)) / total)) +labs(subtitle = "USA")
+
+grid.arrange(bpfr, bpus, ncol=1)
+```
+
+# The rise, decline and fall of firstnames
+
+**Question:** For each year, country, gender and firstname, compute the
+popularity rank of the firstname among the names given to babies with
+that gender, in that country, in that year. The most popular name should
+be given rank $1$.
+
+```{r}
+rank_df <- function(df){
+  df %>% 
+  filter(!is.na(year) , firstname != "_PRENOMS_RARES" ) %>%
+  group_by(year, gender) %>%
+  mutate(rank = dense_rank(-count))
+}
+
+rank_df(french_df) %>% 
+  filter(rank<=5) %>%
+  arrange(year, gender, rank)
+
+rank_df(us_df) %>% 
+  filter(rank<=5) %>%
+  arrange(year, gender, rank)
+```
+
+**QUESTION:** For each firstname and sex (some names may be given to
+girls and boys), compute the total number of times this firstname has
+been given during `1900-2019`. Print the top 20 firstnames given and
+style your result dataframe using `DT::datatable()` for instance.
+
+```{r}
+dt_calc <- function(df){
+  df %>% 
+  # We decided to remove _PRENOMS_RARES, because it corresponds to a group of name. It would make no sense to count them in our ranking.
+  filter(!is.na(year), year >= 1900, year <= 2019, firstname != "_PRENOMS_RARES") %>%
+  group_by(firstname, gender) %>%
+  summarize(total_count = sum(count)) %>%
+  # We ungroup, to apply the ranking.
+  ungroup() %>%
+  # We print the top 20 firstnames  
+  filter(dense_rank(-total_count) <= 20) %>%
+  arrange(desc(total_count)) %>%
+  DT::datatable(colnames = c("firstname", "gender", "frequency"),
+                caption = "Ranking of names between 1900-2019",
+                options = list(pageLength = 5))
+}
+
+dt_calc(french_df)
+dt_calc(us_df)
+```
+
+## Rare firstnames
+
+**QUESTION:** In the French data, for each sex, plot the proportion of
+births given `_PRENOMS_RARES` as a function of the year.
+
+```{r}
+french_df %>%
+  filter(!is.na(year)) %>%
+  group_by(year, gender) %>%
+  summarise(count_total = sum(count), count_rares = sum(count[firstname == "_PRENOMS_RARES"]), proportion_rares = count_rares/count_total) %>%
+  ggplot() +
+  aes(x = year) +
+  aes(y = proportion_rares) + 
+  aes(color = gender) +
+  geom_line(alpha=0.5) +
+  labs(title="Proportion of rare firstnames between 1900 to 2020", x = "Year", y = "Rare firstname proportion") +
+  scale_x_continuous(breaks = seq(1900, 2021, 5)) +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5, hjust=0.5))
+```
+
+# A study of the "Marie" firstname
+
+**QUESTION:** Plot the proportion of female births given name `'MARIE'`
+or `'MARIE-...'` (compounded names) as a function of the year. Proceed
+in such a way that the reader can see the share of compounded names. We
+are expecting an *area plot*.
+
+**Hints:**
+
+-   Have a look at the `.str` accessor (to apply a string method over a
+    whole column containing string)
+
+-   Have a look at [r-graph-gallery: stacked
+    area](https://www.r-graph-gallery.com/stacked-area-graph.html) and
+    at [ggplot
+    documentation](https://ggplot2.tidyverse.org/reference/geom_ribbon.html).
+    Pay attention on the way you stack the area corresponding to names
+    matching pattern 'MARIE-.\*' over or under the are corresponding to
+    babies named 'MARIE'
+
+-   See Graphique 3, page 48, de *L'archipel français* de J. Fourquet.
+    Le Seuil. Essais. Vol. 898.
+
+-   Add annotation, 1st World War, Front Populaire, 2nd World War, 1968
+
+```{r}
+french_df %>%
+  ungroup() %>%
+  filter(!is.na(year), gender == "Female") %>%
+  group_by(year) %>%
+  # The idea is to count all the frequencies of compound name by filtering the firstname that starts with MARIE, and that contains a dash '-'.
+  # ^ signifies "starts with"
+  # $ signifies "end with".
+  # Thus to detect all rows with first name MARIE, we use the string ^MARIE$. For compound name, we use ^MARIE-
+  summarise(total_count = sum(count),
+            marie_count = count[str_detect(firstname, "^MARIE$")], 
+            marie_compound_count = sum(count[str_detect(firstname, "^MARIE-")]),
+            marie_proportion = 100 * marie_count / total_count,
+            marie_compound_proportion = 100 * marie_compound_count / total_count) %>%
+  pivot_longer(cols=c("marie_proportion", "marie_compound_proportion"), names_to = "firstname_type", values_to="proportion") %>% 
+  ggplot() +
+  aes(x = year) +
+  aes(y = proportion) +
+  aes(fill=firstname_type) +
+  geom_area() +
+  annotate("text", x = 1960, y = 25, label = "1st World War, Front Populaire, 2nd World War, 1968") +
+  labs(title="Study of Marie firstname and its compounds", x = "Year", y = "Rare firstname proportion") +
+  scale_x_continuous(breaks = seq(1900, 2021, 5)) +
+  theme(axis.text.x = element_text(angle=70, vjust=0.5, hjust=0.5))
+```
+
+# Top 10 firstnames of year 2000
+
+**QUESTION:** For each sex, select the ten most popular names in year
+2000, and plot the proportion of newborns given that name over time.
+Take into account that some names might have zero occurrence during
+certain years.
+
+**Hint:** Leave aside the rows with '\_PRENOMS_RARES'.
+
+```{r}
+top10_df <- function(df){
+  rank_df(df)%>%
+  filter(year == 2000) %>%
+  group_by(gender) %>%
+  top_n(-10, rank) %>%
+  select(firstname, gender)
+}
+
+# Merge with original data to get the proportions
+props <- function(df){
+  aux <- top10_df(df)
+  df%>%
+  filter(!is.na(year)) %>%
+  inner_join(aux, by = c("gender", "firstname")) %>%
+  mutate(proportions = count / sum(count)) %>%
+  select(gender, firstname, year, proportions)
+}
+
+prop_plot <- 
+  ggplot() +
+  aes(x = year, y = proportions, color = firstname) + 
+  geom_line(alpha=0.5) +
+  facet_wrap(~gender, ncol = 1) +
+  labs(title = "Proportion of top 10 firstnames over time",
+       y = "Proportion",
+       x = "Year")
+```
+
+### Plotting French data 
+```{r}
+prop_plot%+%props(french_df)+labs(subtitle = "France")
+```
+
+### Plotting USA data
+```{r}
+prop_plot%+%props(us_df)+labs(subtitle = "USA")
+```
+
+
+# Picturing concentration of babynames distributions
+
+Every year, the name counts define a discrete probability distribution
+over the set of names (the universe).
+
+This distribution, just as an income or wealth distribution, is
+(usually) far from being uniform. We want to assess how uneven it is.
+
+We use the tools developed in econometrics.
+
+Without loss of generality, we assume that we handle a distribution over
+positive integers $1, \ldots, n$ where $n$ is the number of distinct
+names given during a year.
+
+We assume that frequencies $p_1, p_2, \ldots, p_n$ are given in
+ascending order, ties are broken arbitrarily.
+
+The `Lorenz function`
+([Lorenz](https://en.wikipedia.org/wiki/Lorenz_curve) not `Lorentz`)
+maps $[0, 1] \to [0, 1]$.
+
+$$L(x) = \sum_{i=1}^{\lfloor nx \rfloor} p_i .$$
+
+Note that this is a piecewise constant function.
+
+**Question:** Compute and plot the Lorenz function for a given `sex`,
+`year` and `country`
+
+```{r}
+calculate_lorenz <- function(df, year_, gender_)
+{
+  df <- df %>%
+    filter(year == year_, gender == gender_, firstname != "_PRENOMS_RARES") %>%
+    arrange(count)
+  
+  # Compute the cumulative proportion of first names and individuals
+  cum_prop_fn <- cumsum(df$count) / sum(df$count)
+  cum_prop_ind <- seq_along(cum_prop_fn) / length(cum_prop_fn)
+  
+  # Compute the Lorenz curve
+  lorenz_data <- data.frame(x = cum_prop_ind, y = cum_prop_fn)
+  
+  lorenz_data$year = year_
+  return(lorenz_data)
+}
+```
+
+```{r}
+fr_lorenz <- calculate_lorenz(french_df, 2000, "Male")
+#fr_lorenz
+```
+
+```{r}
+# Plot
+fr_lorenz %>%  ggplot(aes(x = x, y = y)) +
+  geom_line(colour = "blue", size = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "gray") +
+  labs(title = paste("Lorenz Curve for French", "Male", "First Names in 2000"),
+       x = "Cumulative Proportion of First Names",
+       y = "Cumulative Proportion of Individuals") +
+  theme_minimal()
+```
+
+**Question:** Design an animated plot that shows the evolution of the
+Lorenz curve of babynames distribution through the years for a given sex
+and country.
+
+```{r}
+animated_lorenz_curve <- function(df, gender_)
+{
+  df <- df %>% filter(!is.na(year))
+  year_min = min(df$year)
+  year_max = max(df$year)
+  
+  # We calculate lorenz dataframe for each year between year_min and year_max
+  list_of_df <- lapply(year_min:year_max, calculate_lorenz, df=df, gender_=gender_)
+  # We concat the list of dataframes
+  do.call(rbind, list_of_df)
+}
+```
+
+```{r}
+animated_fr_lorenz_df <- animated_lorenz_curve(french_df, "Male")
+#animated_fr_lorenz_df
+```
+
+```{r}
+(animated_fr_lorenz_df %>%
+  ggplot() +
+  geom_line(colour='blue') +
+  aes(x = x) + 
+  aes(y = y) +
+  facet_null() +
+  aes(frame = year)) %>%
+  plotly::ggplotly(height = 500, width=750)
+```
+
+The Lorenz curve summarizes how far a discrete probability distribution
+is from the uniform distribution. This is a very rich summary and it is
+difficult to communicate this message to a wide audience. People tend to
+favor numerical indices (they don't really understand, but they get used
+to it): Gini, Atkinson, Theil, ...
+
+The [Gini index](https://en.wikipedia.org/wiki/Gini_coefficient) is
+twice the surface of the area comprised between curves $y=x$ and
+$y=L(x)$.
+
+$$G = 2 \times \int_0^1 (x -L(x)) \mathrm{d}x$$
+
+The next formula allows us to compute it efficiently.
+
+$$G={\frac {2\sum _{i=1}^{n}i p_{i}}{n\sum _{i=1}^{n}p_{i}}}-{\frac {n+1}{n}}.$$
+
+**Question:** Compute and plot Gini index of names distribution over
+time for sex and countries
+
+```{r}
+gini_function <- function(df) {
+  # group the data by gender and year, and sum the counts for each unique firstname in each group
+  grouped <- df %>%
+    group_by(gender, year, firstname) %>%
+    summarize(count = sum(count)) %>%
+    ungroup()
+  
+  # calculate the total count for each gender and year
+  totals <- grouped %>%
+    group_by(gender, year) %>%
+    summarize(total_count = sum(count))
+  
+  # calculate the proportion of the total count that each firstname represents
+  grouped <- grouped %>%
+    left_join(totals, by = c("gender", "year")) %>%
+    mutate(proportion = count / total_count)
+  
+  # sort the values by their proportion, from lowest to highest
+  grouped <- grouped %>%
+    arrange(gender, year, proportion)
+  
+  # calculate the cumulative proportion for each firstname
+  grouped <- grouped %>%
+    group_by(gender, year) %>%
+    mutate(cum_proportion = cumsum(proportion))
+  
+  # calculate the Lorenz curve points for each gender and year
+  lorenz <- grouped %>%
+    group_by(gender, year) %>%
+    summarize(x = c(0, cum_proportion), y = c(0, 1-cum_proportion))
+  
+  # calculate the area under the Lorenz curve using the trapezoidal rule
+  auc <- function(x, y) {
+    sum(diff(x) * (y[-1] + y[-length(y)]) / 2)
+  }
+  gini <- lorenz %>%
+    group_by(gender, year) %>%
+    summarize(gini = 1 - 2 * auc(x, y))
+  
+  gini_plot <- gini %>% 
+    ggplot(aes(x = year, y = gini, color = gender)) +
+    geom_line() +
+    scale_color_manual(values = c("#0072B2", "#D55E00")) +
+    xlab("Year") +
+    ylab("Gini index") +
+    ggtitle("Gini index of firstnames distribution over years for gender")
+  return(gini_plot)
+}
+```
+
+### French gini
+```{r}
+gini_function(french_df)
+```
+
+### USA gini
+```{r}
+gini_function(us_df)
+```
+
+
+# Picturing surges of popularity
+
+In the sequel, the *popularity* of a gendered name in a population
+during a given year is the proportion of babies of that gender born
+during that year in that country, that are given this name.
+
+**Question:** Prepare a data frame that contains for each hype name the
+20 years before and 30 years after the maximum popularity is achieved,
+and, for each such year, the rank and popularity of the hype name. Do
+this for US and French data.
+
+```{r}
+most_pop <- function(df){
+  max_names <- df %>%
+  filter(firstname!="_PRENOMS_RARES", count>0, !is.na(year)) %>% 
+  group_by(year, gender) %>%
+  summarise(count = max(count), .groups = "drop") %>%
+  inner_join(df, by = c("year", "gender", "count"))
+
+  # Find the year with the maximum popularity for each name
+  max_pop_year <- max_names %>%
+    group_by(firstname) %>%
+    summarise(year = list(year[count == max(count)]), .groups = "drop")
+  
+  # Subset the dataframe to include the 20 years before and 30 years after the maximum popularity year
+  subset_df <- max_names %>%
+    inner_join(max_pop_year, by = "firstname") %>%
+    filter(year.x >= (unlist(year.y) - 20), year.x <= (unlist(year.y) + 30)) %>%
+    select(firstname, year = year.x, count)
+  
+  # Calculate rank and popularity for each year in the subset
+  ranked_df <- subset_df %>%
+    group_by(year) %>%
+    mutate(rank = dense_rank(-count), popularity = count / sum(count)) %>%
+    select(firstname, year, rank, popularity)
+  
+  # Merge the results dataframe with the original dataframe to get the gender
+  result_df <- df %>%
+    inner_join(ranked_df, by = c("firstname", "year")) %>%
+    select(firstname, year, gender, rank, popularity) %>%
+    arrange(firstname, year, rank)
+  
+  return(result_df)
+}
+```
+
+```{r}
+most_popular_french <- most_pop(french_df)
+most_popular_us <- most_pop(us_df)
+```
+
+**Question:** Plot offseted popularity (share of given names within
+year, country, gender) curves of hype names. Facet by sex and country.
+
+```{r}
+# Plot offsetted popularity curves by gender
+plot_offset <- 
+  ggplot() +
+  aes(x = year, y = popularity)+
+  geom_line(aes(color = firstname)) +
+  facet_wrap(~gender, scales = "free_y") +
+  labs(x = "Year", y = "Popularity", color = "First Name") +
+  theme_bw()
+```
+
+### Offset French popularity
+```{r}
+plot_offset%+%most_popular_french+labs(subtitle="French")
+```
+
+### Offset USA popularity
+```{r}
+plot_offset%+%most_popular_us+labs(subtitle="USA")
+```
+
+
+**Question:** Rescale popularity curves so that all of them have maximum
+$1$.
+
+```{r}
+# Rescale the popularity curves so that they all have maximum 1
+popularity_rescaled <- function(df){
+  df%>%
+  group_by(gender, firstname) %>%
+  mutate(max_popularity = max(popularity)) %>%
+  ungroup() %>%
+  mutate(popularity = popularity / max_popularity)
+}
+```
+
+### Rescaled French popularity
+```{r}
+(plot_offset%+%popularity_rescaled(most_popular_french))
+```
+
+### Resclaed USA popularity
+```{r}
+(plot_offset%+%popularity_rescaled(most_popular_us))
+```
+
+
+# Getting help
+
+-   [tidyverse](https://tidyverse.org)
+
+-   [plotly](https://plotly.com/R/) for animated plots
+
+-   [stackoverflow](https://stackoverflow.com)
+
+-   <https://github.com/hadley/babynames>
+
+-   Don't Repeat Yourself (DRY) principle at
+    [Wikipedia](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself)
